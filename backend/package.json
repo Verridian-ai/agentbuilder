@@ -1,17 +1,43 @@
 {
   "name": "agent-builder-backend",
   "version": "1.0.0",
+  "description": "Agent Builder Backend - Google Cloud + Neon PostgreSQL",
   "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "db:init": "curl -X POST http://localhost:8080/api/db/init",
+    "health": "curl http://localhost:8080/health",
+    "docker:build": "docker build -t agent-builder-backend .",
+    "docker:run": "docker run -p 8080:8080 --env-file .env agent-builder-backend",
+    "deploy:gcloud": "gcloud run deploy agent-builder-backend --source . --region australia-southeast1 --allow-unauthenticated"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "postgres": "^3.4.3",
     "@google-cloud/storage": "^7.7.0",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2"
-  }
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "postgres": "^3.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.5"
+  },
+  "keywords": [
+    "agent-builder",
+    "cloud-ide",
+    "neon-db",
+    "google-cloud",
+    "express",
+    "mcp"
+  ],
+  "author": "Agent Builder Team",
+  "license": "MIT"
 }
