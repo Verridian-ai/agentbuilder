@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --claude-orange: #E07C41;
+  --canvas-bg: #1a1a1a;
+}
+
+.bg-canvas {
+  background-color: var(--canvas-bg);
+}
+
+.text-claude {
+  color: var(--claude-orange);
+}
