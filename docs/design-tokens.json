@@ -1,0 +1,95 @@
+{
+  "colors": {
+    "background": {
+      "canvas": "#09090B",
+      "surface": "#18181B",
+      "surface-elevated": "#27272A",
+      "surface-active": "#3F3F46",
+      "terminal": "#000000"
+    },
+    "border": {
+      "subtle": "#27272A",
+      "default": "#3F3F46",
+      "focus": "#52525B",
+      "active": "#6366F1"
+    },
+    "primary": {
+      "main": "#6366F1",
+      "hover": "#4F46E5",
+      "text": "#E0E7FF",
+      "glow": "rgba(99, 102, 241, 0.15)"
+    },
+    "text": {
+      "primary": "#FAFAFA",
+      "secondary": "#A1A1AA",
+      "tertiary": "#71717A",
+      "inverse": "#09090B"
+    },
+    "status": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "danger": "#EF4444",
+      "info": "#3B82F6"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "sans": "Inter, system-ui, sans-serif",
+      "mono": "JetBrains Mono, Fira Code, monospace"
+    },
+    "weights": {
+      "regular": 400,
+      "medium": 500,
+      "semibold": 600,
+      "bold": 700
+    },
+    "sizes": {
+      "xs": { "size": "11px", "lineHeight": "14px" },
+      "sm": { "size": "12px", "lineHeight": "16px" },
+      "base": { "size": "14px", "lineHeight": "20px" },
+      "lg": { "size": "16px", "lineHeight": "24px" },
+      "xl": { "size": "20px", "lineHeight": "28px" },
+      "2xl": { "size": "24px", "lineHeight": "32px" }
+    }
+  },
+  "spacing": {
+    "1": "4px",
+    "2": "8px",
+    "3": "12px",
+    "4": "16px",
+    "6": "24px",
+    "8": "32px",
+    "12": "48px",
+    "16": "64px"
+  },
+  "borderRadius": {
+    "sm": "4px",
+    "md": "8px",
+    "lg": "12px",
+    "full": "9999px"
+  },
+  "shadows": {
+    "sm": "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+    "node": "0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15)",
+    "elevated": "0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
+    "glow": "0 0 0 2px rgba(99, 102, 241, 0.4)"
+  },
+  "animation": {
+    "duration": {
+      "fast": "150ms",
+      "normal": "250ms",
+      "slow": "400ms"
+    },
+    "easing": {
+      "default": "cubic-bezier(0.4, 0, 0.2, 1)",
+      "out": "cubic-bezier(0, 0, 0.2, 1)",
+      "smooth": "cubic-bezier(0.16, 1, 0.3, 1)"
+    }
+  },
+  "layout": {
+    "sidebarWidth": "260px",
+    "inspectorWidth": "320px",
+    "headerHeight": "56px",
+    "terminalHeight": "200px"
+  }
+}

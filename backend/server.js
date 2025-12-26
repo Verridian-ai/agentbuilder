@@ -104,6 +104,7 @@ app.post('/api/terminal/execute', async (req, res) => {
   try {
     const { command, userId } = req.body;
     await sql`INSERT INTO terminal_history (user_id, command) VALUES (${userId}, ${command})`;
+    // Simulated command output
     const output = `Executed: ${command}\nOutput: Command completed successfully.`;
     res.json({ output });
   } catch (error) {

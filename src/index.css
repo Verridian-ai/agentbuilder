@@ -2,15 +2,409 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --claude-orange: #E07C41;
-  --canvas-bg: #1a1a1a;
+/* Import JetBrains Mono for code */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    /* Claude Design System Tokens */
+    --background: 20 11% 8%;
+    --foreground: 45 33% 97%;
+    --card: 20 9% 10%;
+    --card-foreground: 45 33% 97%;
+    --popover: 24 7% 13%;
+    --popover-foreground: 45 33% 97%;
+    --primary: 16 60% 60%;
+    --primary-foreground: 45 33% 97%;
+    --secondary: 210 40% 61%;
+    --secondary-foreground: 45 33% 97%;
+    --muted: 24 5% 17%;
+    --muted-foreground: 45 6% 67%;
+    --accent: 86 22% 46%;
+    --accent-foreground: 45 33% 97%;
+    --destructive: 348 76% 46%;
+    --destructive-foreground: 45 33% 97%;
+    --border: 45 6% 67% / 0.2;
+    --input: 24 5% 17%;
+    --ring: 16 60% 60%;
+    --radius: 10px;
+    
+    /* Safe Areas */
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+    
+    /* Layout */
+    --tab-bar-height: 83px;
+    --nav-bar-height: 44px;
+  }
 }
 
-.bg-canvas {
-  background-color: var(--canvas-bg);
+@layer base {
+  * {
+    @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+  
+  html {
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
+  
+  body {
+    @apply bg-canvas text-text-primary antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 22px;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 600;
+  }
+  
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, Monaco, monospace;
+  }
+  
+  input, textarea, select {
+    font-size: 16px;
+    @apply outline-none;
+  }
+  
+  button {
+    touch-action: manipulation;
+  }
 }
 
-.text-claude {
-  color: var(--claude-orange);
+/* Scrollbar Styling */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@media (min-width: 769px) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #1a1918;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #353432;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #424038;
+  }
+}
+
+@layer components {
+  /* Claude Glass Effect */
+  .claude-glass {
+    background: rgba(26, 25, 24, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  
+  .claude-glass-heavy {
+    background: rgba(26, 25, 24, 0.95);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+  }
+  
+  /* iOS-style glass for compatibility */
+  .ios-glass {
+    background: rgba(26, 25, 24, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  
+  .ios-glass-heavy {
+    background: rgba(26, 25, 24, 0.95);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+  }
+  
+  /* Navigation */
+  .ios-nav-bar {
+    @apply fixed top-0 left-0 right-0 z-50 claude-glass;
+    height: calc(var(--nav-bar-height) + var(--safe-area-inset-top));
+    padding-top: var(--safe-area-inset-top);
+  }
+  
+  .ios-tab-bar {
+    @apply fixed bottom-0 left-0 right-0 z-50 claude-glass border-t border-border-subtle;
+    height: var(--tab-bar-height);
+    padding-bottom: var(--safe-area-inset-bottom);
+  }
+  
+  /* Cards */
+  .ios-card, .claude-card {
+    @apply bg-surface rounded-claude border border-border-subtle;
+  }
+  
+  .claude-card-elevated {
+    @apply bg-surface-elevated rounded-claude border border-border-subtle shadow-claude;
+  }
+  
+  /* List Items */
+  .ios-list-item {
+    @apply flex items-center min-h-touch px-4 py-3 bg-surface active:bg-surface-active transition-colors;
+  }
+  
+  /* Buttons */
+  .ios-button, .claude-button {
+    @apply min-h-touch px-6 flex items-center justify-center rounded-claude font-semibold text-base transition-all active:scale-95;
+  }
+  
+  .ios-button-primary, .claude-button-primary {
+    @apply ios-button bg-primary text-primary-foreground hover:bg-primary-hover;
+  }
+  
+  .ios-button-secondary, .claude-button-secondary {
+    @apply ios-button bg-surface-elevated text-primary border border-border-default hover:bg-surface-active;
+  }
+  
+  .claude-button-ghost {
+    @apply ios-button bg-transparent text-text-primary hover:bg-surface-elevated;
+  }
+  
+  /* Sheets */
+  .ios-sheet {
+    @apply fixed inset-x-0 bottom-0 z-50 bg-surface-elevated rounded-t-ios-2xl shadow-ios-sheet;
+    padding-bottom: var(--safe-area-inset-bottom);
+  }
+  
+  .ios-modal {
+    @apply fixed inset-4 z-50 bg-surface rounded-ios-xl shadow-ios-lg overflow-hidden;
+    max-height: calc(100vh - 32px - var(--safe-area-inset-top) - var(--safe-area-inset-bottom));
+  }
+  
+  /* Touch Targets */
+  .touch-target {
+    @apply min-w-touch min-h-touch flex items-center justify-center;
+  }
+  
+  /* Inputs */
+  .ios-input, .claude-input {
+    @apply w-full min-h-touch px-4 bg-surface-elevated rounded-claude text-text-primary placeholder-text-tertiary text-base border border-border-subtle focus:border-primary focus:ring-2 focus:ring-primary/30;
+  }
+  
+  /* Canvas */
+  .canvas-grid {
+    background-image: 
+      radial-gradient(circle, rgba(176, 174, 165, 0.15) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  
+  /* IDE Syntax Highlighting */
+  .syntax-keyword { color: #d97757; }
+  .syntax-string { color: #788c5d; }
+  .syntax-number { color: #6a9bcc; }
+  .syntax-comment { color: #6e6c64; font-style: italic; }
+  .syntax-function { color: #d97757; }
+  .syntax-variable { color: #b0aea5; }
+  .syntax-operator { color: #faf9f5; }
+  .syntax-punctuation { color: #84827a; }
+  .syntax-type { color: #6a9bcc; }
+  
+  /* Code Editor */
+  .code-editor {
+    @apply font-mono text-sm bg-surface-elevated rounded-claude border border-border-subtle;
+    tab-size: 2;
+  }
+  
+  .code-line {
+    @apply px-4 py-0.5 hover:bg-surface-active/50 transition-colors;
+  }
+  
+  .code-line-number {
+    @apply text-text-tertiary select-none w-12 text-right pr-4 inline-block;
+  }
+  
+  .code-line-active {
+    @apply bg-primary/10 border-l-2 border-primary;
+  }
+  
+  /* Terminal */
+  .terminal {
+    @apply font-mono text-sm bg-canvas rounded-claude border border-border-subtle p-4;
+    line-height: 1.6;
+  }
+  
+  .terminal-prompt {
+    @apply text-primary;
+  }
+  
+  .terminal-output {
+    @apply text-text-secondary;
+  }
+  
+  .terminal-error {
+    @apply text-destructive;
+  }
+  
+  .terminal-success {
+    @apply text-accent;
+  }
+  
+  /* File Explorer */
+  .file-tree-item {
+    @apply flex items-center gap-2 px-3 py-1.5 rounded-ios-sm hover:bg-surface-elevated cursor-pointer transition-colors;
+  }
+  
+  .file-tree-item-active {
+    @apply bg-primary/10 text-primary;
+  }
+  
+  /* Status Indicators */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+  
+  .status-online { @apply bg-accent; }
+  .status-offline { @apply bg-text-tertiary; }
+  .status-error { @apply bg-destructive; }
+  .status-warning { @apply bg-warning; }
+  
+  /* API Key Status Badge */
+  .api-status-badge {
+    @apply inline-flex items-center gap-1.5 px-2 py-1 rounded-ios-full text-xs font-medium;
+  }
+  
+  .api-status-valid {
+    @apply bg-accent/20 text-accent;
+  }
+  
+  .api-status-invalid {
+    @apply bg-destructive/20 text-destructive;
+  }
+  
+  .api-status-checking {
+    @apply bg-secondary/20 text-secondary;
+  }
+  
+  /* Plugin Cards */
+  .plugin-card {
+    @apply claude-card p-4 hover:border-primary/50 transition-all cursor-pointer;
+  }
+  
+  .plugin-card-active {
+    @apply border-primary bg-primary/5;
+  }
+  
+  /* Animations */
+  .connection-line {
+    stroke-dasharray: 5 5;
+    animation: flow 1.5s linear infinite;
+  }
+  
+  @keyframes flow {
+    0%, 100% { stroke-dashoffset: 0; }
+    50% { stroke-dashoffset: 20; }
+  }
+  
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  .animate-slide-up {
+    animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .animate-fade-in {
+    animation: fade-in 0.2s ease-out;
+  }
+  
+  .haptic-light {
+    animation: haptic-light 0.1s ease-out;
+  }
+  
+  .haptic-medium {
+    animation: haptic-medium 0.15s ease-out;
+  }
+  
+  @keyframes haptic-light {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(0.98); }
+  }
+  
+  @keyframes haptic-medium {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(0.96); }
+  }
+  
+  /* Pulse Animation for Loading */
+  @keyframes pulse-ring {
+    0% { transform: scale(0.95); opacity: 1; }
+    50% { transform: scale(1); opacity: 0.7; }
+    100% { transform: scale(0.95); opacity: 1; }
+  }
+  
+  .pulse-ring {
+    animation: pulse-ring 2s ease-in-out infinite;
+  }
+}
+
+/* Safe area utilities */
+@layer utilities {
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right);
+  }
+  .mt-safe {
+    margin-top: env(safe-area-inset-top);
+  }
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .pb-tab-bar {
+    padding-bottom: calc(var(--tab-bar-height) + 16px);
+  }
+  
+  .pt-nav-bar {
+    padding-top: calc(var(--nav-bar-height) + var(--safe-area-inset-top) + 16px);
+  }
+  
+  /* Selection color */
+  ::selection {
+    background-color: rgba(217, 119, 87, 0.3);
+  }
 }

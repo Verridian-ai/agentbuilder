@@ -1,0 +1,22 @@
+[project]
+name = "agent-builder-github-mcp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "asyncio>=4.0.0",
+    "asyncpg>=0.31.0",
+    "dataclasses>=0.8",
+    "fastmcp>=2.14.1",
+    "httpx>=0.28.1",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "python-dotenv>=1.2.1",
+    "requests>=2.32.5",
+    "typing-extensions>=4.15.0",
+]
+
+[[tool.uv.index]]
+url = "http://mirrors.cloud.aliyuncs.com/pypi/simple"
+default = true
