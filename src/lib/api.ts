@@ -1,92 +1,217 @@
-// Cloud IDE API Client - Connects frontend to backend services
+// Cloud IDE API Client - Connects frontend to Google Cloud backend with Neon DB
 
-// API endpoints - will be replaced with actual Supabase function URLs after deployment
-const API_BASE = import.meta.env.VITE_API_BASE || '';
-
-// Determine if we're using Supabase functions or local simulation
+// API configuration
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080';
 const USE_SUPABASE = Boolean(import.meta.env.VITE_SUPABASE_URL);
 
+// Get auth token from localStorage
+const getToken = (): string | null => {
+  return localStorage.getItem('auth_token');
+};
+
+// Set auth token in localStorage
+const setToken = (token: string): void => {
+  localStorage.setItem('auth_token', token);
+};
+
+// Remove auth token from localStorage
+const removeToken = (): void => {
+  localStorage.removeItem('auth_token');
+};
+
+// API response interface
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: { code: string; message: string };
 }
 
-// Auth API
+// Fetch wrapper with auth headers
+async function apiFetch<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<ApiResponse<T>> {
+  const token = getToken();
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(options.headers || {})
+  };
+
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.error || { code: 'API_ERROR', message: response.statusText }
+      };
+    }
+
+    return data;
+  } catch (error) {
+    console.error('API Error:', error);
+    return {
+      success: false,
+      error: { code: 'NETWORK_ERROR', message: (error as Error).message }
+    };
+  }
+}
+
+// ============================================================================
+// AUTH API
+// ============================================================================
+
 export const authApi = {
   async register(email: string, password: string, name?: string): Promise<ApiResponse<{ user: any; token: string }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/neon-auth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'register', email, password, name })
-      });
-      return res.json();
+    const response = await apiFetch<{ user: any; token: string }>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, name })
+    });
+
+    if (response.success && response.data?.token) {
+      setToken(response.data.token);
     }
-    // Local simulation
-    const userId = crypto.randomUUID();
-    const token = btoa(JSON.stringify({ userId, email, exp: Date.now() + 86400000 }));
-    return {
-      success: true,
-      data: {
-        user: { id: userId, email, name: name || email.split('@')[0] },
-        token
-      }
-    };
+
+    return response;
   },
 
   async login(email: string, password: string): Promise<ApiResponse<{ user: any; token: string }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/neon-auth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'login', email, password })
-      });
-      return res.json();
+    const response = await apiFetch<{ user: any; token: string }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+
+    if (response.success && response.data?.token) {
+      setToken(response.data.token);
     }
-    const userId = crypto.randomUUID();
-    const token = btoa(JSON.stringify({ userId, email, exp: Date.now() + 86400000 }));
-    return {
-      success: true,
-      data: {
-        user: { id: userId, email, name: email.split('@')[0] },
-        token
-      }
-    };
+
+    return response;
   },
 
-  async verify(token: string): Promise<ApiResponse<{ user: any; valid: boolean }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/neon-auth`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ action: 'verify' })
-      });
-      return res.json();
+  async verify(): Promise<ApiResponse<{ user: any; valid: boolean }>> {
+    const token = getToken();
+    if (!token) {
+      return { success: false, error: { code: 'NO_TOKEN', message: 'No authentication token' } };
     }
-    try {
-      const payload = JSON.parse(atob(token));
-      return { success: true, data: { user: payload, valid: payload.exp > Date.now() } };
-    } catch {
-      return { success: false, error: { code: 'INVALID_TOKEN', message: 'Invalid token' } };
-    }
+    return apiFetch('/api/auth/verify', { method: 'POST' });
+  },
+
+  async updateProfile(data: { name?: string; avatar_url?: string; settings?: any }): Promise<ApiResponse<{ user: any }>> {
+    return apiFetch('/api/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  logout(): void {
+    removeToken();
+  },
+
+  isAuthenticated(): boolean {
+    return Boolean(getToken());
   }
 };
 
-// File Operations API
+// ============================================================================
+// DATABASE API
+// ============================================================================
+
+export const databaseApi = {
+  async initialize(): Promise<ApiResponse<{ message: string; tables: string[] }>> {
+    return apiFetch('/api/db/init', { method: 'POST' });
+  },
+
+  async status(): Promise<ApiResponse<any>> {
+    return apiFetch('/api/status');
+  },
+
+  async health(): Promise<ApiResponse<any>> {
+    const response = await fetch(`${API_BASE}/health`);
+    return response.json();
+  }
+};
+
+// ============================================================================
+// SESSION API
+// ============================================================================
+
+export const sessionApi = {
+  async list(): Promise<ApiResponse<{ sessions: any[] }>> {
+    return apiFetch('/api/sessions');
+  },
+
+  async create(data: {
+    name: string;
+    description?: string;
+    region?: string;
+    machineType?: string;
+  }): Promise<ApiResponse<{ session: any }>> {
+    return apiFetch('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async update(id: string, data: {
+    name?: string;
+    description?: string;
+    status?: string;
+    settings?: any;
+  }): Promise<ApiResponse<{ session: any }>> {
+    return apiFetch(`/api/sessions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async delete(id: string): Promise<ApiResponse<{ message: string }>> {
+    return apiFetch(`/api/sessions/${id}`, { method: 'DELETE' });
+  }
+};
+
+// ============================================================================
+// FILE API
+// ============================================================================
+
 export const fileApi = {
   async list(sessionId?: string): Promise<ApiResponse<{ files: any[] }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/file-operations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'list', sessionId })
-      });
-      return res.json();
-    }
+    const params = sessionId ? `?sessionId=${sessionId}` : '';
+    return apiFetch(`/api/files${params}`);
+  },
+
+  async read(path: string, sessionId?: string): Promise<ApiResponse<{ path: string; content: string; language: string }>> {
+    const params = new URLSearchParams({ path });
+    if (sessionId) params.append('sessionId', sessionId);
+    return apiFetch(`/api/files/read?${params}`);
+  },
+
+  async write(path: string, content: string, sessionId?: string): Promise<ApiResponse<{ path: string; saved: boolean }>> {
+    return apiFetch('/api/files/write', {
+      method: 'POST',
+      body: JSON.stringify({ path, content, sessionId })
+    });
+  },
+
+  async delete(path: string, sessionId?: string): Promise<ApiResponse<{ path: string; deleted: boolean }>> {
+    const params = new URLSearchParams({ path });
+    if (sessionId) params.append('sessionId', sessionId);
+    return apiFetch(`/api/files?${params}`, { method: 'DELETE' });
+  },
+
+  async getTree(sessionId?: string): Promise<ApiResponse<{ tree: any }>> {
+    const params = sessionId ? `?sessionId=${sessionId}` : '';
+    return apiFetch(`/api/files/tree${params}`);
+  },
+
+  // Local simulation fallbacks
+  async listLocal(): Promise<ApiResponse<{ files: any[] }>> {
     return {
       success: true,
       data: {
@@ -98,223 +223,170 @@ export const fileApi = {
         ]
       }
     };
-  },
-
-  async read(path: string): Promise<ApiResponse<{ path: string; content: string; language: string }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/file-operations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'read', path })
-      });
-      return res.json();
-    }
-    // Local file content simulation
-    const contents: Record<string, { content: string; language: string }> = {
-      '/workspace/src/main.ts': {
-        content: `import { createApp } from './App';\n\nconst app = createApp();\napp.listen(3000);`,
-        language: 'typescript'
-      },
-      '/workspace/src/App.tsx': {
-        content: `import React from 'react';\n\nexport function App() {\n  return <div>Cloud IDE</div>;\n}`,
-        language: 'typescript'
-      },
-      '/workspace/package.json': {
-        content: `{\n  "name": "cloud-ide",\n  "version": "1.0.0"\n}`,
-        language: 'json'
-      },
-      '/workspace/CLAUDE.md': {
-        content: `# Cloud IDE\n\n## IDENTITY\nCloud development environment.`,
-        language: 'markdown'
-      }
-    };
-    const file = contents[path];
-    if (!file) {
-      return { success: false, error: { code: 'NOT_FOUND', message: 'File not found' } };
-    }
-    return { success: true, data: { path, ...file } };
-  },
-
-  async write(path: string, content: string): Promise<ApiResponse<{ path: string; saved: boolean }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/file-operations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'write', path, content })
-      });
-      return res.json();
-    }
-    return { success: true, data: { path, saved: true } };
-  },
-
-  async getTree(): Promise<ApiResponse<{ tree: any }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/file-operations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'tree' })
-      });
-      return res.json();
-    }
-    return {
-      success: true,
-      data: {
-        tree: {
-          name: 'workspace',
-          type: 'folder',
-          children: [
-            {
-              name: 'src',
-              type: 'folder',
-              children: [
-                { name: 'main.ts', type: 'file', path: '/workspace/src/main.ts' },
-                { name: 'App.tsx', type: 'file', path: '/workspace/src/App.tsx' }
-              ]
-            },
-            { name: 'package.json', type: 'file', path: '/workspace/package.json' },
-            { name: 'CLAUDE.md', type: 'file', path: '/workspace/CLAUDE.md' }
-          ]
-        }
-      }
-    };
   }
 };
 
-// Terminal API
+// ============================================================================
+// TERMINAL API
+// ============================================================================
+
 export const terminalApi = {
   async execute(command: string, sessionId?: string, workingDir?: string): Promise<ApiResponse<{
     command: string;
     output: string;
     exitCode: number;
   }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/terminal-service`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command, sessionId, workingDir })
-      });
-      return res.json();
-    }
-    // Local command simulation
-    const cmd = command.trim();
-    let output = '';
-    let exitCode = 0;
+    return apiFetch('/api/terminal/execute', {
+      method: 'POST',
+      body: JSON.stringify({ command, sessionId, workingDir })
+    });
+  },
 
-    if (cmd === 'help') {
-      output = 'Available: ls, pwd, cat, echo, npm, git, node, clear';
-    } else if (cmd === 'pwd') {
-      output = workingDir || '/workspace';
-    } else if (cmd === 'ls') {
-      output = 'src/  package.json  CLAUDE.md';
-    } else if (cmd === 'node --version') {
-      output = 'v20.10.0';
-    } else if (cmd.startsWith('npm ')) {
-      output = `Executing: ${cmd}...`;
-    } else if (cmd.startsWith('git ')) {
-      output = `git: ${cmd.substring(4)}`;
-    } else {
-      output = `$ ${cmd}`;
-    }
-
-    return { success: true, data: { command: cmd, output, exitCode } };
+  async history(sessionId?: string, limit = 50): Promise<ApiResponse<{ history: any[] }>> {
+    const params = new URLSearchParams({ limit: limit.toString() });
+    if (sessionId) params.append('sessionId', sessionId);
+    return apiFetch(`/api/terminal/history?${params}`);
   }
 };
 
-// Script Generator API
+// ============================================================================
+// AI API
+// ============================================================================
+
+export const aiApi = {
+  async chat(messages: Array<{ role: string; content: string }>, model?: string): Promise<ApiResponse<{
+    content: string;
+    model: string;
+    usage?: any;
+  }>> {
+    return apiFetch('/api/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ messages, model })
+    });
+  },
+
+  async generate(prompt: string, model?: string): Promise<ApiResponse<{ content: string; model: string }>> {
+    return apiFetch('/api/ai/generate', {
+      method: 'POST',
+      body: JSON.stringify({ prompt, model })
+    });
+  },
+
+  async getModels(): Promise<ApiResponse<{ models: Array<{ id: string; name: string; provider: string; context?: number }> }>> {
+    return apiFetch('/api/ai/models');
+  },
+
+  async analyzeCode(code: string): Promise<ApiResponse<{ analysis: string }>> {
+    return apiFetch('/api/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: `Analyze this code and provide insights:\n\n${code}` }],
+        model: 'anthropic/claude-3-haiku'
+      })
+    });
+  }
+};
+
+// ============================================================================
+// PROJECTS API
+// ============================================================================
+
+export const projectsApi = {
+  async list(): Promise<ApiResponse<{ projects: any[] }>> {
+    return apiFetch('/api/projects');
+  },
+
+  async create(data: {
+    name: string;
+    description?: string;
+    template?: string;
+    github_url?: string;
+    settings?: any;
+  }): Promise<ApiResponse<{ project: any }>> {
+    return apiFetch('/api/projects', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+};
+
+// ============================================================================
+// MCP SERVERS API
+// ============================================================================
+
+export const mcpApi = {
+  async list(): Promise<ApiResponse<{ servers: any[] }>> {
+    return apiFetch('/api/mcp/servers');
+  },
+
+  async create(data: {
+    name: string;
+    type: string;
+    config: any;
+    enabled?: boolean;
+  }): Promise<ApiResponse<{ server: any }>> {
+    return apiFetch('/api/mcp/servers', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async update(id: string, data: {
+    name?: string;
+    config?: any;
+    enabled?: boolean;
+  }): Promise<ApiResponse<{ server: any }>> {
+    return apiFetch(`/api/mcp/servers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  async delete(id: string): Promise<ApiResponse<{ message: string }>> {
+    return apiFetch(`/api/mcp/servers/${id}`, { method: 'DELETE' });
+  }
+};
+
+// ============================================================================
+// SCRIPT GENERATOR API
+// ============================================================================
+
 export const scriptApi = {
   async generate(agentConfig: any, outputFormat: 'shell' | 'powershell' | 'claudemd' = 'shell'): Promise<ApiResponse<{
     script: string;
     filename: string;
     language: string;
   }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/script-generator`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentConfig, outputFormat })
-      });
-      return res.json();
-    }
-    // Local generation
-    const script = `#!/bin/bash\n# Setup for ${agentConfig.name || 'My Agent'}\necho "Setting up..."`;
-    return {
-      success: true,
-      data: { script, filename: 'setup.sh', language: 'bash' }
-    };
+    return apiFetch('/api/scripts/generate', {
+      method: 'POST',
+      body: JSON.stringify({ agentConfig, outputFormat })
+    });
   }
 };
 
-// AI Service API
-export const aiApi = {
-  async chat(messages: Array<{ role: string; content: string }>, model?: string): Promise<ApiResponse<{
-    content: string;
-    model: string;
-  }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-service-proxy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chat', messages, model })
-      });
-      return res.json();
-    }
-    return {
-      success: true,
-      data: { content: 'AI response (requires backend)', model: model || 'claude-3.5-sonnet' }
-    };
-  },
+// ============================================================================
+// WEBSOCKET UPLINK CONNECTION
+// ============================================================================
 
-  async analyzeCode(code: string): Promise<ApiResponse<{ analysis: string }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-service-proxy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'analyze-code', code })
-      });
-      return res.json();
-    }
-    return { success: true, data: { analysis: 'Code analysis requires backend connection' } };
-  },
-
-  async getModels(): Promise<ApiResponse<{ models: Array<{ id: string; name: string; provider: string }> }>> {
-    if (USE_SUPABASE) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-service-proxy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'models' })
-      });
-      return res.json();
-    }
-    return {
-      success: true,
-      data: {
-        models: [
-          { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic' },
-          { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'OpenAI' }
-        ]
-      }
-    };
-  }
-};
-
-// WebSocket Uplink Connection
 export class UplinkWebSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(private url?: string) {}
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       const wsUrl = this.url || import.meta.env.VITE_WS_URL || 'wss://realtime.supabase.co';
-      
+
       try {
         this.ws = new WebSocket(wsUrl);
-        
+
         this.ws.onopen = () => {
           this.reconnectAttempts = 0;
+          this.startHeartbeat();
           this.emit('connected', { timestamp: Date.now() });
           resolve();
         };
@@ -333,6 +405,7 @@ export class UplinkWebSocket {
         };
 
         this.ws.onclose = () => {
+          this.stopHeartbeat();
           this.emit('disconnected', { timestamp: Date.now() });
           this.attemptReconnect();
         };
@@ -342,10 +415,26 @@ export class UplinkWebSocket {
     });
   }
 
+  private startHeartbeat() {
+    this.heartbeatInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+      }
+    }, 30000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
   private attemptReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      setTimeout(() => this.connect(), 2000 * this.reconnectAttempts);
+      const delay = Math.min(2000 * Math.pow(2, this.reconnectAttempts), 30000);
+      setTimeout(() => this.connect(), delay);
     }
   }
 
@@ -360,6 +449,7 @@ export class UplinkWebSocket {
       this.listeners.set(event, new Set());
     }
     this.listeners.get(event)!.add(callback);
+    return () => this.off(event, callback);
   }
 
   off(event: string, callback: (data: any) => void) {
@@ -371,6 +461,7 @@ export class UplinkWebSocket {
   }
 
   disconnect() {
+    this.stopHeartbeat();
     this.ws?.close();
     this.ws = null;
   }
@@ -378,7 +469,25 @@ export class UplinkWebSocket {
   get isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
   }
+
+  get connectionState(): string {
+    if (!this.ws) return 'closed';
+    switch (this.ws.readyState) {
+      case WebSocket.CONNECTING: return 'connecting';
+      case WebSocket.OPEN: return 'open';
+      case WebSocket.CLOSING: return 'closing';
+      case WebSocket.CLOSED: return 'closed';
+      default: return 'unknown';
+    }
+  }
 }
 
 // Export singleton instance
 export const uplink = new UplinkWebSocket();
+
+// ============================================================================
+// LEGACY COMPATIBILITY EXPORTS
+// ============================================================================
+
+// For backward compatibility with existing code that uses USE_SUPABASE pattern
+export { API_BASE, USE_SUPABASE, getToken, setToken, removeToken };
