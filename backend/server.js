@@ -1444,8 +1444,10 @@ function buildFileTree(files) {
 // START SERVER
 // ============================================================================
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`
+// Only start the server if not in test mode
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║                 AGENT BUILDER BACKEND                       ║
 ╠══════════════════════════════════════════════════════════════╣
@@ -1454,14 +1456,15 @@ app.listen(PORT, '0.0.0.0', () => {
 ║  Storage:    Google Cloud Storage                            ║
 ║  Region:     ${(process.env.REGION || 'australia-southeast1').padEnd(35)}║
 ╚══════════════════════════════════════════════════════════════╝
-  `);
-});
+    `);
+  });
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('Shutting down gracefully...');
-  await sql.end();
-  process.exit(0);
-});
+  // Graceful shutdown
+  process.on('SIGTERM', async () => {
+    console.log('Shutting down gracefully...');
+    await sql.end();
+    process.exit(0);
+  });
+}
 
 export default app;
