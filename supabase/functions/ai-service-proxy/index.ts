@@ -11,8 +11,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY') || 
-      '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';
+    const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OPENROUTER_API_KEY environment variable is required');
+    }
 
     const { action, messages, model = 'anthropic/claude-3.5-sonnet', code, prompt } = await req.json();
 

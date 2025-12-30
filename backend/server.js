@@ -3,6 +3,8 @@ import cors from 'cors';
 import postgres from 'postgres';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { Storage } from '@google-cloud/storage';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -11,19 +13,60 @@ import { randomUUID } from 'crypto';
 const execAsync = promisify(exec);
 
 const app = express();
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
+
+// Rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { code: 'RATE_LIMIT', message: 'Too many requests' } }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { success: false, error: { code: 'RATE_LIMIT', message: 'Too many login attempts' } }
+});
+
+// CORS configuration
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'];
+
 app.use(cors({
-  origin: '*',
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Info']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Info'],
+  credentials: true
 }));
 app.use(express.json({ limit: '50mb' }));
 
 const PORT = process.env.PORT || 8080;
-const JWT_SECRET = process.env.JWT_SECRET || 'agent-builder-secret-key-2024';
 
-// Neon DB connection with connection pooling
-const NEON_CONNECTION_STRING = process.env.NEON_DB_CONNECTION_STRING ||
-  'postgresql://neondb_owner:npg_rQvf5D0HGxBw@ep-aged-sky-a7p3va5h-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require';
+// JWT Secret - REQUIRED
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is required');
+  process.exit(1);
+}
+
+// Neon DB connection - REQUIRED
+const NEON_CONNECTION_STRING = process.env.NEON_DB_CONNECTION_STRING;
+if (!NEON_CONNECTION_STRING) {
+  console.error('FATAL: NEON_DB_CONNECTION_STRING environment variable is required');
+  process.exit(1);
+}
 
 const sql = postgres(NEON_CONNECTION_STRING, {
   max: 10,
@@ -42,6 +85,17 @@ const bucket = storage.bucket(process.env.CLOUD_STORAGE_BUCKET || 'agent-builder
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 
 // ============================================================================
+// CSRF PROTECTION NOTE
+// ============================================================================
+// This API uses JWT Bearer tokens in Authorization headers (not cookies).
+// CSRF protection is NOT NEEDED for Bearer token authentication because:
+// 1. Browsers don't automatically include Authorization headers cross-origin
+// 2. Cross-origin requests with custom headers require CORS preflight
+// 3. Our CORS config restricts origins to ALLOWED_ORIGINS only
+// CSRF attacks exploit automatic cookie submission - which doesn't apply here.
+// See: OWASP REST Security Cheat Sheet
+
+// ============================================================================
 // MIDDLEWARE
 // ============================================================================
 
@@ -53,7 +107,7 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
     if (err) {
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
@@ -61,6 +115,24 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+// Apply rate limiters
+app.use('/api/', apiLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+
+// Path validation helper for file operations
+function validateFilePath(filePath) {
+  if (!filePath || typeof filePath !== 'string') return { valid: false, error: 'Path is required' };
+  const normalized = filePath.replace(/\\/g, '/');
+  if (normalized.includes('..') || normalized.includes('//')) {
+    return { valid: false, error: 'Invalid file path' };
+  }
+  if (!normalized.startsWith('/workspace') && !normalized.startsWith('workspace')) {
+    return { valid: false, error: 'Path must be within /workspace' };
+  }
+  return { valid: true, path: normalized };
+}
 
 // ============================================================================
 // HEALTH & STATUS
@@ -106,7 +178,7 @@ app.get('/api/status', async (req, res) => {
 // DATABASE INITIALIZATION
 // ============================================================================
 
-app.post('/api/db/init', async (req, res) => {
+app.post('/api/db/init', authenticateToken, async (req, res) => {
   try {
     // Create users table
     await sql`
@@ -564,6 +636,14 @@ app.get('/api/files', authenticateToken, async (req, res) => {
   try {
     const { sessionId, path: filePath } = req.query;
 
+    // Validate path if provided
+    if (filePath) {
+      const validation = validateFilePath(filePath);
+      if (!validation.valid) {
+        return res.status(400).json({ success: false, error: { code: 'INVALID_PATH', message: validation.error } });
+      }
+    }
+
     let files;
     if (sessionId) {
       files = await sql`
@@ -613,6 +693,12 @@ app.get('/api/files/read', authenticateToken, async (req, res) => {
         success: false,
         error: { code: 'VALIDATION_ERROR', message: 'Path is required' }
       });
+    }
+
+    // Validate path to prevent traversal attacks
+    const validation = validateFilePath(filePath);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_PATH', message: validation.error } });
     }
 
     // Try database first
@@ -679,6 +765,12 @@ app.post('/api/files/write', authenticateToken, async (req, res) => {
         success: false,
         error: { code: 'VALIDATION_ERROR', message: 'Path is required' }
       });
+    }
+
+    // Validate path to prevent traversal attacks
+    const validation = validateFilePath(filePath);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_PATH', message: validation.error } });
     }
 
     const fileName = filePath.split('/').pop();
@@ -754,6 +846,12 @@ app.delete('/api/files', authenticateToken, async (req, res) => {
         success: false,
         error: { code: 'VALIDATION_ERROR', message: 'Path is required' }
       });
+    }
+
+    // Validate path to prevent traversal attacks
+    const validation = validateFilePath(filePath);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_PATH', message: validation.error } });
     }
 
     if (sessionId) {
@@ -1018,7 +1116,7 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/ai/generate', async (req, res) => {
+app.post('/api/ai/generate', authenticateToken, async (req, res) => {
   try {
     const { prompt, model = 'anthropic/claude-3-haiku' } = req.body;
 
